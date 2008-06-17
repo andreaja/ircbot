@@ -46,7 +46,10 @@ class Bot(asynchat.async_chat):
       try: 
          if text is not None: 
             self.push(' '.join(args) + ' :' + text + '\r\n')
-         else: self.push(' '.join(args) + '\r\n')
+            if self.verbose: print >> sys.stderr, ">>> %s :%s" % (' '.join(args),text)
+         else: 
+            self.push(' '.join(args) + '\r\n')
+            if self.verbose: print >> sys.stderr, ">>> %s" % ' '.join(args)
       except IndexError: 
          pass
 
@@ -76,7 +79,7 @@ class Bot(asynchat.async_chat):
       if self.verbose: 
          print >> sys.stderr, 'connected!'
       self.write(('NICK', self.nick))
-      self.write(('USER', self.user, '+iw', self.nick), self.name)
+      self.write(('USER', self.user, '+ixw', self.nick), self.name)
 
    def handle_close(self): 
       self.close()
@@ -99,6 +102,9 @@ class Bot(asynchat.async_chat):
       if ' :' in line: 
          argstr, text = line.split(' :', 1)
       else: argstr, text = line, ''
+      
+      print >> sys.stderr, "<<< %s" % line
+      
       args = argstr.split()
 
       origin = Origin(self, source, args)
