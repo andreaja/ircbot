@@ -15,6 +15,7 @@ class Watcher(object):
    def __init__(self):
       self.child = os.fork()
       if self.child != 0: 
+         signal.signal(signal.SIGTERM, self.sig_term)
          self.watch()
 
    def watch(self):
@@ -26,6 +27,10 @@ class Watcher(object):
    def kill(self):
       try: os.kill(self.child, signal.SIGKILL)
       except OSError: pass
+
+   def sig_term(self, signum, frame):
+      self.kill()
+      sys.exit()
 
 def run_phenny(config): 
    if hasattr(config, 'delay'): 
