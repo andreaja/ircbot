@@ -108,7 +108,7 @@ def tr2(phenny, input):
       else: msg = 'The %s to %s translation failed, sorry!' % (src, dest)
 
       phenny.reply(msg)
-   else: phenny.reply('Language guessing failed, so try suggesting one!')
+   else: phenny.reply('Unable to guess your crazy moon language, sorry. Maybe you can suggest one?')
 
 tr2.commands = ['tr']
 tr2.priority = 'low'
