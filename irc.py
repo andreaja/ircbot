@@ -25,7 +25,7 @@ class Origin(object):
       self.sender = mappings.get(target, target)
 
 class Bot(asynchat.async_chat): 
-   def __init__(self, nick, name, channels): 
+   def __init__(self, nick, name, channels, password=None): 
       asynchat.async_chat.__init__(self)
       self.set_terminator('\n')
       self.buffer = ''
@@ -33,6 +33,7 @@ class Bot(asynchat.async_chat):
       self.nick = nick
       self.user = nick
       self.name = name
+      self.password = password
 
       self.verbose = True
       self.channels = channels or []
@@ -41,24 +42,34 @@ class Bot(asynchat.async_chat):
       import threading
       self.sending = threading.RLock()
 
+   def initiate_send(self):
+      self.sending.acquire()
+      asynchat.async_chat.initiate_send(self)
+      self.sending.release()
+
+   # def push(self, *args, **kargs): 
+   #    asynchat.async_chat.push(self, *args, **kargs)
+
    def __write(self, args, text=None): 
-      # print '%r %r %r' % (self, args, text)
+      # print 'PUSH: %r %r %r' % (self, args, text)
       try: 
          if text is not None: 
-            self.push(' '.join(args) + ' :' + text + '\r\n')
-            if self.verbose: print >> sys.stderr, ">>> %s :%s" % (' '.join(args),text)
-         else: 
-            self.push(' '.join(args) + '\r\n')
-            if self.verbose: print >> sys.stderr, ">>> %s" % ' '.join(args)
+            # 510 because CR and LF count too, as nyuszika7h points out
+            self.push((' '.join(args) + ' :' + text)[:510] + '\r\n')
+         else: self.push(' '.join(args)[:510] + '\r\n')
       except IndexError: 
          pass
 
    def write(self, args, text=None): 
       # This is a safe version of __write
+      def safe(input): 
+         input = input.replace('\n', '')
+         input = input.replace('\r', '')
+         return input.encode('utf-8')
       try: 
-         args = [arg.encode('utf-8') for arg in args]
+         args = [safe(arg) for arg in args]
          if text is not None: 
-            text = text.encode('utf-8')
+            text = safe(text)
          self.__write(args, text)
       except Exception, e: pass
 
@@ -78,8 +89,10 @@ class Bot(asynchat.async_chat):
    def handle_connect(self): 
       if self.verbose: 
          print >> sys.stderr, 'connected!'
+      if self.password: 
+         self.write(('PASS', self.password))
       self.write(('NICK', self.nick))
-      self.write(('USER', self.user, '+ixw', self.nick), self.name)
+      self.write(('USER', self.user, '+iw', self.nick), self.name)
 
    def handle_close(self): 
       self.close()
@@ -94,7 +107,7 @@ class Bot(asynchat.async_chat):
          line = line[:-1]
       self.buffer = ''
 
-      # print line
+      # print 'GOT:', repr(line)
       if line.startswith(':'): 
          source, line = line[1:].split(' ', 1)
       else: source = None
@@ -102,9 +115,6 @@ class Bot(asynchat.async_chat):
       if ' :' in line: 
          argstr, text = line.split(' :', 1)
       else: argstr, text = line, ''
-      
-      print >> sys.stderr, "<<< %s" % line
-      
       args = argstr.split()
 
       origin = Origin(self, source, args)
@@ -147,7 +157,10 @@ class Bot(asynchat.async_chat):
             self.sending.release()
             return
 
-      self.__write(('PRIVMSG', recipient), text)
+      def safe(input): 
+         input = input.replace('\n', '')
+         return input.replace('\r', '')
+      self.__write(('PRIVMSG', safe(recipient)), safe(text))
       self.stack.append((time.time(), text))
       self.stack = self.stack[-10:]
 

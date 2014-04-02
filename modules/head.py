@@ -7,7 +7,7 @@ Licensed under the Eiffel Forum License 2.
 http://inamidst.com/phenny/
 """
 
-import re, urllib, urlparse, time
+import re, urllib, urllib2, httplib, urlparse, time
 from htmlentitydefs import name2codepoint
 import web
 from tools import deprecated
@@ -24,11 +24,18 @@ def head(phenny, input):
       try: uri = phenny.last_seen_uri[input.sender]
       except KeyError: return phenny.say('?')
 
+   if not uri.startswith('htt'): 
+      uri = 'http://' + uri
+   # uri = uri.replace('#!', '?_escaped_fragment_=')
+
    try: info = web.head(uri)
    except IOError: return phenny.say("Can't connect to %s" % uri)
+   except httplib.InvalidURL: return phenny.say("Not a valid URI, sorry.")
 
    if not isinstance(info, list): 
-      info = dict(info)
+      try: info = dict(info)
+      except TypeError: 
+         return phenny.reply('Try .head http://example.org/ [optional header]')
       info['Status'] = '200'
    else: 
       newInfo = dict(info[0])
@@ -74,11 +81,32 @@ def f_title(self, origin, match, args):
 
    if not ':' in uri: 
       uri = 'http://' + uri
+   uri = uri.replace('#!', '?_escaped_fragment_=')
+
+   localhost = [
+      'http://localhost/', 'http://localhost:80/', 
+      'http://localhost:8080/', 'http://127.0.0.1/', 
+      'http://127.0.0.1:80/', 'http://127.0.0.1:8080/', 
+      'https://localhost/', 'https://localhost:80/', 
+      'https://localhost:8080/', 'https://127.0.0.1/', 
+      'https://127.0.0.1:80/', 'https://127.0.0.1:8080/', 
+   ]
+   for s in localhost: 
+      if uri.startswith(s): 
+         return phenny.reply('Sorry, access forbidden.')
 
    try: 
       redirects = 0
       while True: 
-         info = web.head(uri)
+         headers = {
+            'Accept': 'text/html', 
+            'User-Agent': 'Mozilla/5.0 (Phenny)'
+         }
+         req = urllib2.Request(uri, headers=headers)
+         u = urllib2.urlopen(req)
+         info = u.info()
+         u.close()
+         # info = web.head(uri)
 
          if not isinstance(info, list): 
             status = '200'
@@ -102,8 +130,8 @@ def f_title(self, origin, match, args):
          self.msg(origin.sender, origin.nick + ": Document isn't HTML")
          return
 
-      u = urllib.urlopen(uri)
-      bytes = u.read(32768)
+      u = urllib2.urlopen(req)
+      bytes = u.read(262144)
       u.close()
 
    except IOError: 
@@ -135,8 +163,16 @@ def f_title(self, origin, match, args):
             return unichr(char).encode('utf-8')
       title = r_entity.sub(e, title)
 
-      if not title: 
-         title = '[Title is the empty document, "".]'
+      if title: 
+         try: title.decode('utf-8')
+         except: 
+            try: title = title.decode('iso-8859-1').encode('utf-8')
+            except: title = title.decode('cp1252').encode('utf-8')
+         else: pass
+      else: title = '[The title is empty.]'
+
+      title = title.replace('\n', '')
+      title = title.replace('\r', '')
       self.msg(origin.sender, origin.nick + ': ' + title)
    else: self.msg(origin.sender, origin.nick + ': No title found')
 f_title.commands = ['title']
@@ -146,7 +182,7 @@ def noteuri(phenny, input):
    if not hasattr(phenny.bot, 'last_seen_uri'): 
       phenny.bot.last_seen_uri = {}
    phenny.bot.last_seen_uri[input.sender] = uri
-noteuri.rule = r'.*(http://[^<> "\x01]+)[,.]?'
+noteuri.rule = r'.*(http[s]?://[^<> "\x01]+)[,.]?'
 noteuri.priority = 'low'
 
 if __name__ == '__main__': 

@@ -22,7 +22,8 @@ def decode(bytes):
 
 class Phenny(irc.Bot): 
    def __init__(self, config): 
-      irc.Bot.__init__(self, config.nick, config.name, config.channels)
+      args = (config.nick, config.name, config.channels, config.password)
+      irc.Bot.__init__(self, *args)
       self.config = config
       self.doc = {}
       self.stats = {}
@@ -39,7 +40,6 @@ class Phenny(irc.Bot):
       else: 
          for fn in self.config.enable: 
             filenames.append(os.path.join(home, 'modules', fn + '.py'))
-      # @@ exclude
 
       if hasattr(self.config, 'extra'): 
          for fn in self.config.extra: 
@@ -51,8 +51,12 @@ class Phenny(irc.Bot):
                      filenames.append(os.path.join(fn, n))
 
       modules = []
+      excluded_modules = getattr(self.config, 'exclude', [])
       for filename in filenames: 
          name = os.path.basename(filename)[:-3]
+         if name in excluded_modules: continue
+         # if name in sys.modules: 
+         #    del sys.modules[name]
          try: module = imp.load_source(name, filename)
          except Exception, e: 
             print >> sys.stderr, "Error loading %s: %s (in bot.py)" % (name, e)
@@ -92,8 +96,8 @@ class Phenny(irc.Bot):
 
       def sub(pattern, self=self): 
          # These replacements have significant order
-         pattern = pattern.replace('$nickname', self.nick)
-         return pattern.replace('$nick', r'%s[,:] +' % self.nick)
+         pattern = pattern.replace('$nickname', re.escape(self.nick))
+         return pattern.replace('$nick', r'%s[,:] +' % re.escape(self.nick))
 
       for name, func in self.variables.iteritems(): 
          # print name, func
@@ -126,7 +130,7 @@ class Phenny(irc.Bot):
                   prefix = self.config.prefix
                   commands, pattern = func.rule
                   for command in commands: 
-                     command = r'(%s)(?: +(?:%s))?' % (command, pattern)
+                     command = r'(%s)\b(?: +(?:%s))?' % (command, pattern)
                      regexp = re.compile(prefix + command)
                      bind(self, func.priority, regexp, func)
 
@@ -152,11 +156,12 @@ class Phenny(irc.Bot):
             self.bot = phenny
 
          def __getattr__(self, attr): 
+            sender = origin.sender or text
             if attr == 'reply': 
                return (lambda msg: 
-                  self.bot.msg(origin.sender, origin.nick + ': ' + msg))
+                  self.bot.msg(sender, origin.nick + ': ' + msg))
             elif attr == 'say': 
-               return lambda msg: self.bot.msg(origin.sender, msg)
+               return lambda msg: self.bot.msg(sender, msg)
             return getattr(self.bot, attr)
 
       return PhennyWrapper(self)
@@ -200,7 +205,7 @@ class Phenny(irc.Bot):
          items = self.commands[priority].items()
          for regexp, funcs in items: 
             for func in funcs: 
-               if event != func.event: continue
+               if event != func.event and func.event != '*': continue
 
                match = regexp.match(text)
                if match: 

@@ -29,7 +29,8 @@ def loadReminders(fn):
    for line in f: 
       line = line.strip()
       if line: 
-         tellee, teller, verb, timenow, msg = line.split('\t', 4)
+         try: tellee, teller, verb, timenow, msg = line.split('\t', 4)
+         except ValueError: continue # @@ hmm
          result.setdefault(tellee, []).append((teller, verb, timenow, msg))
    f.close()
    return result
@@ -39,7 +40,8 @@ def dumpReminders(fn, data):
    for tellee in data.iterkeys(): 
       for remindon in data[tellee]: 
          line = '\t'.join((tellee,) + remindon)
-         f.write(line + '\n')
+         try: f.write(line + '\n')
+         except IOError: break
    try: f.close()
    except IOError: pass
    return True
@@ -64,7 +66,7 @@ def f_remind(phenny, input):
    tellee = tellee.encode('utf-8')
    msg = msg.encode('utf-8')
 
-   tellee_original = tellee.rstrip(',:;')
+   tellee_original = tellee.rstrip('.,:;')
    tellee = tellee_original.lower()
 
    if not os.path.exists(phenny.tell_filename): 
@@ -80,13 +82,13 @@ def f_remind(phenny, input):
       if not phenny.reminders.has_key(tellee): 
          phenny.reminders[tellee] = [(teller, verb, timenow, msg)]
       else: 
-         if len(phenny.reminders[tellee]) >= maximum: 
-            warn = True
+         # if len(phenny.reminders[tellee]) >= maximum: 
+         #    warn = True
          phenny.reminders[tellee].append((teller, verb, timenow, msg))
       # @@ Stephanie's augmentation
       response = "I'll pass that on when %s is around." % tellee_original
-      if warn: response += (" I'll have to use a pastebin, though, so " + 
-                            "your message may get lost.")
+      # if warn: response += (" I'll have to use a pastebin, though, so " + 
+      #                       "your message may get lost.")
 
       rand = random.random()
       if rand > 0.9999: response = "yeah, yeah"
@@ -120,6 +122,7 @@ def message(phenny, input):
    tellee = input.nick
    channel = input.sender
 
+   if not os: return
    if not os.path.exists(phenny.tell_filename): 
       return
 
@@ -128,40 +131,26 @@ def message(phenny, input):
    for remkey in remkeys: 
       if not remkey.endswith('*') or remkey.endswith(':'): 
          if tellee.lower() == remkey: 
+            phenny.sending.acquire()
             reminders.extend(getReminders(phenny, channel, remkey, tellee))
-      elif tellee.lower().startswith(remkey.rstrip('*:')): 
+            phenny.sending.release()
+      elif tellee.lower().strip("0123456789_-[]`") == remkey.rstrip('*:'): 
+         phenny.sending.acquire()
          reminders.extend(getReminders(phenny, channel, remkey, tellee))
+         phenny.sending.release()
 
    for line in reminders[:maximum]: 
       phenny.say(line)
 
    if reminders[maximum:]: 
-      try: 
-         if origin.sender in lispchannels: 
-            chan = origin.sender
-         else: chan = 'None'
-
-         result = web.post('http://paste.lisp.org/submit', 
-            {'channel': chan, 
-             'username': phenny.nick, 
-             'title': 'Further Messages for %s' % tellee, 
-             'colorize': 'None', 
-             'text': '\n'.join(reminders[maximum:]) + '\n', 
-             'captcha': 'lisp', 
-             'captchaid': 'bdf447484f62a3e8b23816f9acee79d9'
-            }
-         )
-         uris = re.findall('http://paste.lisp.org/display/\d+', result)
-         uri = list(reversed(uris)).pop()
-         if not origin.sender in lispchannels: 
-            message = '%s: see %s for further messages' % (tellee, uri)
-            phenny.say(message)
-      except: 
-         error = '[Sorry, some messages were elided and lost...]'
-         phenny.say(error)
+      phenny.say('Further messages sent privately')
+      for line in reminders[maximum:]: 
+         phenny.msg(tellee, line)
 
    if len(phenny.reminders.keys()) != remkeys: 
+      phenny.sending.acquire()
       dumpReminders(phenny.tell_filename, phenny.reminders) # @@ tell
+      phenny.sending.release()
 message.rule = r'(.*)'
 message.priority = 'low'
 

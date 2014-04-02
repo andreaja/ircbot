@@ -13,18 +13,6 @@ from tools import deprecated
 
 r_from = re.compile(r'(?i)([+-]\d+):00 from')
 
-r_json = re.compile(r'^[,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]+$')
-r_string = re.compile(r'("(\\.|[^"\\])*")')
-env = {'__builtins__': None, 'null': None, 
-       'true': True, 'false': False}
-
-def json(text): 
-   """Evaluate JSON text safely (we hope)."""
-   if r_json.match(r_string.sub('', text)): 
-      text = r_string.sub(lambda m: 'u' + m.group(1), text)
-      return eval(text.strip(' \t\r\n'), env, {})
-   raise ValueError('Input must be serialised JSON.')
-
 def location(name): 
    name = urllib.quote(name.encode('utf-8'))
    uri = 'http://ws.geonames.org/searchJSON?q=%s&maxRows=1' % name
@@ -34,7 +22,7 @@ def location(name):
    bytes = u.read()
    u.close()
 
-   results = json(bytes)
+   results = web.json(bytes)
    try: name = results['geonames'][0]['name']
    except IndexError: 
       return '?', '?', '0', '0'
@@ -64,18 +52,21 @@ def local(icao, hour, minute):
    return str(hour) + ':' + str(minute) + 'Z'
 
 def code(phenny, search): 
-   name, country, latitude, longitude = location(search)
-   if name == '?': return False
-
-   sumOfSquares = (99999999999999999999999999999, 'ICAO')
    from icao import data
-   for icao_code, lat, lon in data: 
-      latDiff = abs(latitude - lat)
-      lonDiff = abs(longitude - lon)
-      diff = (latDiff * latDiff) + (lonDiff * lonDiff)
-      if diff < sumOfSquares[0]: 
-         sumOfSquares = (diff, icao_code)
-   return sumOfSquares[1]
+   
+   if search.upper() in [loc[0] for loc in data]:
+      return search.upper()
+   else:
+      name, country, latitude, longitude = location(search)
+      if name == '?': return False
+      sumOfSquares = (99999999999999999999999999999, 'ICAO')
+      for icao_code, lat, lon in data: 
+         latDiff = abs(latitude - lat)
+         lonDiff = abs(longitude - lon)
+         diff = (latDiff * latDiff) + (lonDiff * lonDiff)
+         if diff < sumOfSquares[0]: 
+            sumOfSquares = (diff, icao_code)
+      return sumOfSquares[1]
 
 @deprecated
 def f_weather(self, origin, match, args): 
@@ -87,11 +78,7 @@ def f_weather(self, origin, match, args):
    if not icao_code: 
       return self.msg(origin.sender, 'Try .weather London, for example?')
 
-   if (not len(icao_code) == 4) or \
-      (len(icao_code) > 1 and icao_code[0] in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' and 
-                         icao_code[1] in 'abcdefghijklmnopqrstuvwxyz'): 
-      icao_code = code(self, icao_code)
-   else: icao_code = icao_code.upper()
+   icao_code = code(self, icao_code)
 
    if not icao_code: 
       self.msg(origin.sender, 'No ICAO code found, sorry')

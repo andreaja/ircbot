@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 """
 clock.py - Phenny Clock Module
-Copyright 2008, Sean B. Palmer, inamidst.com
+Copyright 2008-9, Sean B. Palmer, inamidst.com
 Licensed under the Eiffel Forum License 2.
 
 http://inamidst.com/phenny/
 """
 
-import math, time, urllib
+import re, math, time, urllib, locale, socket, struct, datetime
+from decimal import Decimal as dec
 from tools import deprecated
 
 TimeZones = {'KST': 9, 'CADT': 10.5, 'EETDST': 3, 'MESZ': 2, 'WADT': 9, 
@@ -96,8 +97,8 @@ TZ1 = {
 }
 
 TZ2 = {
- 'ACDT': -10.5, 
- 'ACST': -9.5, 
+ 'ACDT': 10.5, 
+ 'ACST': 9.5, 
  'ADT': 3, 
  'AEDT': 11, # hmm
  'AEST': 10, # hmm
@@ -135,7 +136,7 @@ TZ2 = {
  'HST': 10, 
  'IDLE': -12, 
  'IDLW': 12, 
- 'IST': -5.5, 
+ # 'IST': -5.5, 
  'IT': -3.5, 
  'JST': -9, 
  'JT': -7, 
@@ -181,8 +182,16 @@ TZ2 = {
  'ZP6': -6
 }
 
-TimeZones.update(TZ2)
+TZ3 = {
+   'AEST': 10, 
+   'AEDT': 11
+}
+
+# TimeZones.update(TZ2) # do these have to be negated?
 TimeZones.update(TZ1)
+TimeZones.update(TZ3)
+
+r_local = re.compile(r'\([a-z]+_[A-Z]+\)')
 
 @deprecated
 def f_time(self, origin, match, args): 
@@ -204,6 +213,10 @@ def f_time(self, origin, match, args):
 
    if (TZ == 'UTC') or (TZ == 'Z'): 
       msg = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+      self.msg(origin.sender, msg)
+   elif r_local.match(tz): # thanks to Mark Shoulsdon (clsn)
+      locale.setlocale(locale.LC_TIME, (tz[1:-1], 'UTF-8'))
+      msg = time.strftime("%A, %d %B %Y %H:%M:%SZ", time.gmtime())
       self.msg(origin.sender, msg)
    elif TimeZones.has_key(TZ): 
       offset = TimeZones[TZ] * 3600
@@ -251,12 +264,10 @@ def yi(phenny, input):
    raels = quadraels * 4
    extraraels, remainder = divide(remainder, 432000)
    if extraraels == 4: 
-      return phenny.say('Yes!')
+      return phenny.say('Yes! PARTAI!')
    else: phenny.say('Not yet...')
 yi.commands = ['yi']
 yi.priority = 'low'
-
-# d8uv d8uv d8uv d8uv d8uv d8uv d8uv
 
 def tock(phenny, input): 
    """Shows the time from the USNO's atomic clock."""
@@ -266,6 +277,26 @@ def tock(phenny, input):
    phenny.say('"' + info['Date'] + '" - tycho.usno.navy.mil')
 tock.commands = ['tock']
 tock.priority = 'high'
+
+def npl(phenny, input): 
+   """Shows the time from NPL's SNTP server."""
+   # for server in ('ntp1.npl.co.uk', 'ntp2.npl.co.uk'): 
+   client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+   client.sendto('\x1b' + 47 * '\0', ('ntp1.npl.co.uk', 123))
+   data, address = client.recvfrom(1024)
+   if data: 
+      buf = struct.unpack('B' * 48, data)
+      d = dec('0.0')
+      for i in range(8):
+         d += dec(buf[32 + i]) * dec(str(math.pow(2, (3 - i) * 8)))
+      d -= dec(2208988800L)
+      a, b = str(d).split('.')
+      f = '%Y-%m-%d %H:%M:%S'
+      result = datetime.datetime.fromtimestamp(d).strftime(f) + '.' + b[:6]
+      phenny.say(result + ' - ntp1.npl.co.uk')
+   else: phenny.say('No data received, sorry')
+npl.commands = ['npl']
+npl.priority = 'high'
 
 if __name__ == '__main__': 
    print __doc__.strip()
