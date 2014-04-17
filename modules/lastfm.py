@@ -65,7 +65,7 @@ def lastfm(phenny, input):
     else:
         phenny.say(message.encode("utf8"))
 
-lastfm.rule = (['lastfm'], r'(\S+)')
+lastfm.rule = (['last', 'lastfm'], r'(\S+)')
 lastfm.priority = 'low'
 lastfm.example = '.lastfm username'
 
