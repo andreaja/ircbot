@@ -20,7 +20,7 @@ def lastfm(phenny, input):
         phenny.say("last.fm not configured")
         return
 
-    user = input.group(2)
+    user = input.group(2) or input.nick
     query = urllib.urlencode({
         "method": "user.recenttracks",
         "api_key": api_key,
