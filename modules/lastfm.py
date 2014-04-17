@@ -68,6 +68,7 @@ def lastfm(phenny, input):
 lastfm.rule = (['last', 'lastfm'], r'(\S+)')
 lastfm.priority = 'low'
 lastfm.example = '.lastfm username'
+lastfm.thread = True
 
 if __name__ == '__main__':
    print __doc__.strip()
