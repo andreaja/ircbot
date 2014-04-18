@@ -8,13 +8,14 @@ Licensed under the Eiffel Forum License 2.
 http://inamidst.com/phenny/
 """
 
-SOURCE = "http://www.scorespro.com/rss/live-soccer.xml"
+SOURCE = "http://www.scorespro.com/rss2/live-soccer.xml"
 
 import urllib, re
 from lxml import etree
 
 def soccer(phenny, input):
-    text = urllib.unquote(input.group(2)) or "."
+    text = input.group(2) or "."
+    text = urllib.unquote(text)
     regexp = re.compile("^.*%s.*$" % text, re.IGNORECASE)
 
     dom = etree.parse(urllib.urlopen(SOURCE))
@@ -29,8 +30,10 @@ def soccer(phenny, input):
             phenny.say(message.encode("utf-8"))
         if matches > 2:
             return
+    if matches == 0:
+        phenny.say("No games matching '%s' found" % text)
 
-soccer.command = ['soccer']
+soccer.commands = ['soccer']
 soccer.priority = 'low'
 soccer.example = '.soccer portsmouth'
 soccer.thread = True
