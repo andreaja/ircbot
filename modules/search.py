@@ -141,37 +141,12 @@ def bing(phenny, input):
 bing.commands = ['bing']
 bing.example = '.bing swhack'
 
-r_duck = re.compile(r'nofollow" class="[^"]+" href="(.*?)">')
-
-def duck_search(query):
-   query = query.replace('!', '')
-   query = web.urllib.quote(query)
-   uri = 'https://duckduckgo.com/html/?q=%s&kl=uk-en' % query
-   bytes = web.get(uri)
-   m = r_duck.search(bytes)
-   if m: return web.decode(m.group(1))
-
-def duck(phenny, input):
-   query = input.group(2)
-   if not query: return phenny.reply('.ddg what?')
-
-   query = query.encode('utf-8')
-   uri = duck_search(query)
-   if uri:
-      phenny.reply(uri)
-      if not hasattr(phenny.bot, 'last_seen_uri'):
-         phenny.bot.last_seen_uri = {}
-      phenny.bot.last_seen_uri[input.sender] = uri
-   else: phenny.reply("No results found for '%s'." % query)
-duck.commands = ['duck', 'ddg']
-
 def search(phenny, input):
    if not input.group(2):
       return phenny.reply('.search for what?')
    query = input.group(2).encode('utf-8')
    gu = google_search(query) or '-'
    bu = bing_search(query) or '-'
-   du = duck_search(query) or '-'
 
    if (gu == bu) and (bu == du):
       result = '%s (g, b, d)' % gu
