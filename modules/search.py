@@ -18,9 +18,9 @@ class Grab(web.urllib.URLopener):
    def http_error_default(self, url, fp, errcode, errmsg, headers):
       return web.urllib.addinfourl(fp, [headers, errcode], "http:" + url)
 
-def google_ajax(query): 
+def google_ajax(query):
    """Search using AjaxSearch, and return its JSON."""
-   if isinstance(query, unicode): 
+   if isinstance(query, unicode):
       query = query.encode('utf-8')
    uri = 'http://ajax.googleapis.com/ajax/services/search/web'
    args = '?v=1.0&safe=off&q=' + web.urllib.quote(query)
@@ -30,23 +30,23 @@ def google_ajax(query):
    web.urllib._urlopener = handler
    return web.json(bytes)
 
-def google_search(query): 
+def google_search(query):
    results = google_ajax(query)
    try: return results['responseData']['results'][0]['unescapedUrl']
    except IndexError: return None
-   except TypeError: 
+   except TypeError:
       print results
       return False
 
-def google_count(query): 
+def google_count(query):
    results = google_ajax(query)
    if not results.has_key('responseData'): return '0'
    if not results['responseData'].has_key('cursor'): return '0'
-   if not results['responseData']['cursor'].has_key('estimatedResultCount'): 
+   if not results['responseData']['cursor'].has_key('estimatedResultCount'):
       return '0'
    return results['responseData']['cursor']['estimatedResultCount']
 
-def formatnumber(n): 
+def formatnumber(n):
    """Format a number with beautiful commas."""
    parts = list(str(n))
    for i in range((len(parts) - 3), 0, -3):
@@ -56,14 +56,14 @@ def formatnumber(n):
 def old_gc(query):
    return formatnumber(google_count(query))
 
-def g(phenny, input): 
+def g(phenny, input):
    """Queries Google for the specified input."""
    query = input.group(2)
-   if not query: 
+   if not query:
       return phenny.reply('.g what?')
    query = query.encode('utf-8')
    uri = google_search(query)
-   if uri: 
+   if uri:
       phenny.reply(uri)
       if not hasattr(phenny.bot, 'last_seen_uri'):
          phenny.bot.last_seen_uri = {}
@@ -74,10 +74,10 @@ g.commands = ['g']
 g.priority = 'high'
 g.example = '.g swhack'
 
-def oldgc(phenny, input): 
+def oldgc(phenny, input):
    """Returns the number of Google results for the specified input."""
    query = input.group(2)
-   if not query: 
+   if not query:
       return phenny.reply('.gc what?')
    query = query.encode('utf-8')
    num = formatnumber(google_count(query))
@@ -89,15 +89,15 @@ r_query = re.compile(
    r'\+?"[^"\\]*(?:\\.[^"\\]*)*"|\[[^]\\]*(?:\\.[^]\\]*)*\]|\S+'
 )
 
-def gcs(phenny, input): 
+def gcs(phenny, input):
    if not input.group(2):
       return phenny.reply("Nothing to compare.")
    queries = r_query.findall(input.group(2))
-   if len(queries) > 6: 
+   if len(queries) > 6:
       return phenny.reply('Sorry, can only compare up to six things.')
 
    results = []
-   for i, query in enumerate(queries): 
+   for i, query in enumerate(queries):
       query = query.strip('[]')
       query = query.encode('utf-8')
       n = int((formatnumber(google_count(query)) or '0').replace(',', ''))
@@ -112,7 +112,7 @@ gcs.commands = ['gcs', 'comp']
 
 r_bing = re.compile(r'<h3><a href="([^"]+)"')
 
-def bing_search(query, lang='en-GB'): 
+def bing_search(query, lang='en-GB'):
    query = web.urllib.quote(query)
    base = 'http://www.bing.com/search?mkt=%s&q=' % lang
    bytes = web.get(base + query)
@@ -120,10 +120,10 @@ def bing_search(query, lang='en-GB'):
       if "r.msn.com/" in result: continue
       return result
 
-def bing(phenny, input): 
+def bing(phenny, input):
    """Queries Bing for the specified input."""
    query = input.group(2)
-   if query.startswith(':'): 
+   if query.startswith(':'):
       lang, query = query.split(' ', 1)
       lang = lang[1:]
    else: lang = 'en-GB'
@@ -132,7 +132,7 @@ def bing(phenny, input):
 
    query = query.encode('utf-8')
    uri = bing_search(query, lang)
-   if uri: 
+   if uri:
       phenny.reply(uri)
       if not hasattr(phenny.bot, 'last_seen_uri'):
          phenny.bot.last_seen_uri = {}
@@ -143,21 +143,21 @@ bing.example = '.bing swhack'
 
 r_duck = re.compile(r'nofollow" class="[^"]+" href="(.*?)">')
 
-def duck_search(query): 
+def duck_search(query):
    query = query.replace('!', '')
    query = web.urllib.quote(query)
-   uri = 'http://duckduckgo.com/html/?q=%s&kl=uk-en' % query
+   uri = 'https://duckduckgo.com/html/?q=%s&kl=uk-en' % query
    bytes = web.get(uri)
    m = r_duck.search(bytes)
    if m: return web.decode(m.group(1))
 
-def duck(phenny, input): 
+def duck(phenny, input):
    query = input.group(2)
    if not query: return phenny.reply('.ddg what?')
 
    query = query.encode('utf-8')
    uri = duck_search(query)
-   if uri: 
+   if uri:
       phenny.reply(uri)
       if not hasattr(phenny.bot, 'last_seen_uri'):
          phenny.bot.last_seen_uri = {}
@@ -165,23 +165,23 @@ def duck(phenny, input):
    else: phenny.reply("No results found for '%s'." % query)
 duck.commands = ['duck', 'ddg']
 
-def search(phenny, input): 
-   if not input.group(2): 
+def search(phenny, input):
+   if not input.group(2):
       return phenny.reply('.search for what?')
    query = input.group(2).encode('utf-8')
    gu = google_search(query) or '-'
    bu = bing_search(query) or '-'
    du = duck_search(query) or '-'
 
-   if (gu == bu) and (bu == du): 
+   if (gu == bu) and (bu == du):
       result = '%s (g, b, d)' % gu
-   elif (gu == bu): 
+   elif (gu == bu):
       result = '%s (g, b), %s (d)' % (gu, du)
-   elif (bu == du): 
+   elif (bu == du):
       result = '%s (b, d), %s (g)' % (bu, gu)
-   elif (gu == du): 
+   elif (gu == du):
       result = '%s (g, d), %s (b)' % (gu, bu)
-   else: 
+   else:
       if len(gu) > 250: gu = '(extremely long link)'
       if len(bu) > 150: bu = '(extremely long link)'
       if len(du) > 150: du = '(extremely long link)'
@@ -190,13 +190,13 @@ def search(phenny, input):
    phenny.reply(result)
 search.commands = ['search']
 
-def suggest(phenny, input): 
+def suggest(phenny, input):
    if not input.group(2):
       return phenny.reply("No query term.")
    query = input.group(2).encode('utf-8')
    uri = 'http://websitedev.de/temp-bin/suggest.pl?q='
    answer = web.get(uri + web.urllib.quote(query).replace('+', '%2B'))
-   if answer: 
+   if answer:
       phenny.say(answer)
    else: phenny.reply('Sorry, no result.')
 suggest.commands = ['suggest']
@@ -261,5 +261,5 @@ gc.commands = ['gc']
 gc.priority = 'high'
 gc.example = '.gc extrapolate'
 
-if __name__ == '__main__': 
+if __name__ == '__main__':
    print __doc__.strip()
